@@ -110,7 +110,7 @@ void OrkToPlanningScene::orkToPlanningSceneCallback(
 
         ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult result;
         bool updateOK = processObjectRecognition(actionOrk_.getResult(),
-                goal->expected_objects, goal->verify_planning_scene_update,
+                goal->expected_objects, goal->verify_planning_scene_update, goal->add_objects,
                 goal->add_tables, table_prefix, goal->merge_tables, result);
         if(!updateOK) {
             ROS_ERROR("processObjectRecognition failed - probably due to planning scene update not verified or moveit not running.");
@@ -159,7 +159,7 @@ bool OrkToPlanningScene::verifyPlanningScene(const std::vector<moveit_msgs::Coll
 bool OrkToPlanningScene::processObjectRecognition(
         const object_recognition_msgs::ObjectRecognitionResultConstPtr & objResult,
         const std::vector<std::string> & expected_objects, bool verify,
-        bool add_tables, const std::string & table_prefix, bool merge_tables,
+        bool add_objects, bool add_tables, const std::string & table_prefix, bool merge_tables,
         ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult & result)
 {
     bool ok;
@@ -183,8 +183,11 @@ bool OrkToPlanningScene::processObjectRecognition(
         determineObjectMatches(psObjects, orObjects, planningSceneUndetectedObjects, objectRecognitionNewObjects,
                 planningSceneReplacedObjects, matchedObjects, true);
     }
-    determineObjectMatches(psObjects, orObjects, planningSceneUndetectedObjects, objectRecognitionNewObjects,
-            planningSceneReplacedObjects, matchedObjects, false);
+
+    if(add_objects){
+    	determineObjectMatches(psObjects, orObjects, planningSceneUndetectedObjects, objectRecognitionNewObjects,
+            	planningSceneReplacedObjects, matchedObjects, false);
+	}
 
     // new ones need new unique names (either unique forever or reuse whats not in planning scene?)
     // forever is nicer, but not in PS is stateless - for now stateless
