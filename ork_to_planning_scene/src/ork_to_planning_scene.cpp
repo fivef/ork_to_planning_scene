@@ -376,14 +376,10 @@ std::vector<moveit_msgs::CollisionObject> OrkToPlanningScene::getCollisionObject
     return cos;
 }
 
-shape_msgs::Mesh OrkToPlanningScene::createMeshFromCountour(const std::vector<geometry_msgs::Point> & contours,
-        double z_offset)
+shape_msgs::Mesh OrkToPlanningScene::createMeshFromCountour(const std::vector<geometry_msgs::Point> & contours)
 {
     shape_msgs::Mesh mesh;
-    forEach(const geometry_msgs::Point & pt, contours) {
-        mesh.vertices.push_back(pt);
-        mesh.vertices.back().z += z_offset;
-    }
+    mesh.vertices = contours;
     for(int i = 2; i < mesh.vertices.size(); ++i) {
         // poor man's triangulation: Fan pattern.
         shape_msgs::MeshTriangle tri;
@@ -397,7 +393,6 @@ shape_msgs::Mesh OrkToPlanningScene::createMeshFromCountour(const std::vector<ge
     for(int i = 0; i < contours.size(); ++i) {
         geometry_msgs::Point pt = contours[i];
         pt.z -= table_thickness_;
-        pt.z += z_offset;
         mesh.vertices.push_back(pt);
     }
 
@@ -511,9 +506,7 @@ moveit_msgs::CollisionObject OrkToPlanningScene::merge_table_objects(const movei
         contours.push_back(ptMsg);
     }
     // finally recreate mesh from merged contours
-    // merged contours were created from already zero-corrected objects either from before
-    // (because we put them in the planning scene) or because we just did that to the new table
-    ret.meshes[0] = createMeshFromCountour(contours, 0.0);
+    ret.meshes[0] = createMeshFromCountour(contours);
     return ret;
 }
 
@@ -615,32 +608,17 @@ bool OrkToPlanningScene::isValidTable(const object_recognition_msgs::RecognizedO
     return true;
 }
 
-double OrkToPlanningScene::estimateContourMeanZ(const std::vector<geometry_msgs::Point> & contours)
-{
-    if(contours.empty())
-        return 0.0;
-    double sumZ = 0.0;
-    forEach(const geometry_msgs::Point & pt, contours) {
-        sumZ += pt.z;
-    }
-    sumZ /= contours.size();
-    return sumZ;
-}
-
 bool OrkToPlanningScene::collisionObjectFromRecognizedObject(const object_recognition_msgs::RecognizedObject & ro,
         moveit_msgs::CollisionObject & co, const std::string & table_prefix)
 {
     co.header = ro.header;
     co.type = ro.type;
 
-    double z_offset = 0.0;
     if(isTable(co.type)) {  // this is a table, not a RecognizedObject
         if(!isValidTable(ro)) {
             return false;
         }
-        double contourMeanZ = estimateContourMeanZ(ro.bounding_contours);
-        z_offset = contourMeanZ;    // we push the mesh against that, correct the pose by this
-        co.meshes.push_back(createMeshFromCountour(ro.bounding_contours, -contourMeanZ));
+        co.meshes.push_back(createMeshFromCountour(ro.bounding_contours));
         if(co.meshes.front().triangles.empty()) {
             ROS_WARN("Detected table had no triangles.");
             return false;
@@ -678,16 +656,7 @@ bool OrkToPlanningScene::collisionObjectFromRecognizedObject(const object_recogn
     }
 
     // we now have a mesh from somewhere
-    // apply z_offset to pose
-    tf::Pose mesh_pose;
-    tf::poseMsgToTF(ro.pose.pose.pose, mesh_pose);
-    tf::Pose z_offset_pose(tf::Quaternion(0,0,0,1), tf::Vector3(0.0, 0.0, z_offset));
-    mesh_pose *= z_offset_pose;
-
-    // TODO what with the merging
-    geometry_msgs::Pose offset_mesh_pose;
-    tf::poseTFToMsg(mesh_pose, offset_mesh_pose);
-    co.mesh_poses.push_back(offset_mesh_pose);
+    co.mesh_poses.push_back(ro.pose.pose.pose);
 
     return true;
 }
