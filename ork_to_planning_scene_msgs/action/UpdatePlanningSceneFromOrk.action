@@ -5,6 +5,7 @@ string[] expected_objects           # Objects in the planning scene that are exp
 # Objects not mentioned in expected_objects (e.g. not in FOV) will not be removed even when there was no match
 
 bool add_tables             # Add tables as collision objects
+bool add_objects            # Add objects as collision objects
 string table_prefix           # Table objects will be prefixed with this (using "table" if empty)
 bool merge_tables           # If a table match is found: merge the contours instead of replacing
 ---

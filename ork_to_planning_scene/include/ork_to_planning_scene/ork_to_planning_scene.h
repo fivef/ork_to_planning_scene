@@ -71,7 +71,7 @@ namespace ork_to_planning_scene
             /// Handle an ORK result and update planning scene accordingly.
             bool processObjectRecognition(const object_recognition_msgs::ObjectRecognitionResultConstPtr & objResult,
                     const std::vector<std::string> & expected_objects, bool verify,
-                    bool add_tables, const std::string & table_prefix, bool merge_tables,
+                    bool add_objects, bool add_tables, const std::string & table_prefix, bool merge_tables,
                     ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult & result);
 
             void fillResult(ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult & result,
@@ -178,7 +178,7 @@ namespace ork_to_planning_scene
             ros::Publisher pubMarker_;
 
             actionlib::SimpleActionServer<ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkAction>
-                actionOrkToPlanningScene_; 
+                actionOrkToPlanningScene_;
 
             // Parameters
             double object_match_distance_;
@@ -189,8 +189,9 @@ namespace ork_to_planning_scene
             double table_min_z_;
             double table_max_z_;
             double table_thickness_;
+
+            bool add_objects_;
     };
 }
 
 #endif
-

@@ -10,6 +10,7 @@
 #include <opencv/cv.h>
 
 #include <boost/foreach.hpp>
+
 #define forEach BOOST_FOREACH
 
 // Later TODO
@@ -55,6 +56,8 @@ OrkToPlanningScene::OrkToPlanningScene() :
     nhPriv.param("table_max_z", table_max_z_, 1.1);
     nhPriv.param("table_thickness", table_thickness_, 0.075);
 
+    add_objects_ = true;
+
     ROS_INFO("Actions and Services available - spinning up ork_to_planning_scene action.");
     actionOrkToPlanningScene_.start();
     ROS_INFO("Ready!");
@@ -67,7 +70,7 @@ OrkToPlanningScene::DistanceToPose::DistanceToPose(
 }
 
 bool OrkToPlanningScene::DistanceToPose::operator()(
-        const moveit_msgs::CollisionObject* lhs, const moveit_msgs::CollisionObject* rhs) 
+        const moveit_msgs::CollisionObject* lhs, const moveit_msgs::CollisionObject* rhs)
 {
     double dLhs = otps_.poseDistance(pose_, OrkToPlanningScene::getPoseStamped(*lhs)).first;
     double dRhs = otps_.poseDistance(pose_, OrkToPlanningScene::getPoseStamped(*rhs)).first;
@@ -80,7 +83,7 @@ OrkToPlanningScene::DistanceToTable::DistanceToTable(
 }
 
 bool OrkToPlanningScene::DistanceToTable::operator()(
-        const moveit_msgs::CollisionObject* lhs, const moveit_msgs::CollisionObject* rhs) 
+        const moveit_msgs::CollisionObject* lhs, const moveit_msgs::CollisionObject* rhs)
 {
     double dLhs = otps_.tableDistance(table_, *lhs, HUGE_VAL);
     double dRhs = otps_.tableDistance(table_, *rhs, HUGE_VAL);
@@ -111,7 +114,7 @@ void OrkToPlanningScene::orkToPlanningSceneCallback(
         ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult result;
         bool updateOK = processObjectRecognition(actionOrk_.getResult(),
                 goal->expected_objects, goal->verify_planning_scene_update,
-                goal->add_tables, table_prefix, goal->merge_tables, result);
+                goal->add_objects, goal->add_tables, table_prefix, goal->merge_tables, result);
         if(!updateOK) {
             ROS_ERROR("processObjectRecognition failed - probably due to planning scene update not verified or moveit not running.");
             actionOrkToPlanningScene_.setAborted();
@@ -159,7 +162,7 @@ bool OrkToPlanningScene::verifyPlanningScene(const std::vector<moveit_msgs::Coll
 bool OrkToPlanningScene::processObjectRecognition(
         const object_recognition_msgs::ObjectRecognitionResultConstPtr & objResult,
         const std::vector<std::string> & expected_objects, bool verify,
-        bool add_tables, const std::string & table_prefix, bool merge_tables,
+        bool add_objects, bool add_tables, const std::string & table_prefix, bool merge_tables,
         ork_to_planning_scene_msgs::UpdatePlanningSceneFromOrkResult & result)
 {
     bool ok;
@@ -172,6 +175,8 @@ bool OrkToPlanningScene::processObjectRecognition(
         return false;
     std::vector<moveit_msgs::CollisionObject> orObjects = getCollisionObjectsFromObjectRecognition(
             objResult, table_prefix);
+
+    add_objects_ = add_objects;
 
     std::vector<moveit_msgs::CollisionObject> planningSceneUndetectedObjects;
     std::vector<moveit_msgs::CollisionObject> objectRecognitionNewObjects;
@@ -240,6 +245,13 @@ bool OrkToPlanningScene::processObjectRecognition(
         ROS_INFO("Removing undetected object: %s", co.id.c_str());
     }
     forEach(moveit_msgs::CollisionObject & co, objectRecognitionNewObjects) {
+
+        if(!add_objects_){
+          if(!isTable(co.type)){
+            ROS_INFO("Object was not added because adding objects was disabled: %s", co.id.c_str());
+            break;
+          }
+        }
         co.operation = moveit_msgs::CollisionObject::ADD;
         planning_scene.world.collision_objects.push_back(co);
         ROS_INFO("Adding new object: %s", co.id.c_str());
@@ -290,7 +302,7 @@ bool OrkToPlanningScene::processObjectRecognition(
         }
     }
 
-    fillResult(result, planning_scene.world.collision_objects);
+
 
     // slight hack: Tables must be ADD for an update as geometry has changed
     // Was only set to MOVE before to differentiate that in fillResult
@@ -298,6 +310,30 @@ bool OrkToPlanningScene::processObjectRecognition(
         if(isTable(co.type) && co.operation == moveit_msgs::CollisionObject::MOVE)
             co.operation = moveit_msgs::CollisionObject::ADD;
     }
+
+/*
+    //Remove all objects
+    forEach(moveit_msgs::CollisionObject & co, planning_scene.world.collision_objects) {
+        if(!isTable(co.type))
+            co.operation = moveit_msgs::CollisionObject::REMOVE;
+    }
+
+    fillResult(result, planning_scene.world.collision_objects);
+
+
+
+    //remove all objects but tables
+    planning_scene.world.collision_objects.erase(
+        std::remove_if(planning_scene.world.collision_objects.begin(), planning_scene.world.collision_objects.end(),
+            [this](const moveit_msgs::CollisionObject & co) { return !this->isTable(co.type); }),
+        planning_scene.world.collision_objects.end());
+
+
+
+    forEach(moveit_msgs::CollisionObject & co, planning_scene.world.collision_objects) {
+        if(!isTable(co.type))
+            co.operation = moveit_msgs::CollisionObject::ADD;
+    }*/
 
     pubPlanningScene_.publish(planning_scene);
     if(verify) {
@@ -885,4 +921,3 @@ bool OrkToPlanningScene::isTable(const object_recognition_msgs::ObjectType & typ
 }
 
 }
-
