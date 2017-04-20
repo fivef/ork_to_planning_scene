@@ -1,0 +1,18 @@
+bool verify_planning_scene_update   # Don't only send the planning scene update, but make sure it arrived
+
+string[] expected_objects           # Objects in the planning scene that are expected to be reobserved
+# If there was no match for such an object it is removed from the planning scene
+# Objects not mentioned in expected_objects (e.g. not in FOV) will not be removed even when there was no match
+
+bool add_tables             # Add tables as collision objects
+bool add_objects            # Add objects as collision objects
+string table_prefix           # Table objects will be prefixed with this (using "table" if empty)
+bool merge_tables           # If a table match is found: merge the contours instead of replacing
+---
+string[] added_objects
+string[] removed_objects
+string[] moved_objects
+string[] added_tables
+string[] removed_tables
+string[] updated_tables
+---
