@@ -398,7 +398,7 @@ std::vector<moveit_msgs::CollisionObject> OrkToPlanningScene::getCollisionObject
         bool objOK = collisionObjectFromRecognizedObject(ro, co, table_prefix);
         if(!objOK) {
             if(isTable(ro.type)) {
-                ROS_WARN("Filtered a table object as it is too small, not in the required z range, or not vertical.");
+                ROS_DEBUG("Filtered a table object as it is too small, not in the required z range, or not vertical.");
             } else {
                 ROS_WARN_STREAM("Could not convert object with type: " << ro.type << " to CollisionObject.");
             }
@@ -614,13 +614,25 @@ bool OrkToPlanningScene::isValidTable(const object_recognition_msgs::RecognizedO
                 ros::Duration(0.5));
         tf_.transformPose("/base_footprint", pose, pose_transformed);
     } catch (tf::TransformException ex) {
-        ROS_ERROR("%s", ex.what());
+        ROS_ERROR_STREAM("Unable to transform table frame " << ro.pose.header.frame_id << " to /base_footprint: " << ex.what());
+        return false;
+    }
+    //filter by table height
+
+
+    if(pose_transformed.pose.position.z < table_min_z_ || pose_transformed.pose.position.z > table_max_z_) {
+        ROS_WARN_STREAM("Filtered table because it was lower than " << table_min_z_ << "m (it was " << pose_transformed.pose.position.z << "m)");
         return false;
     }
 
-    if(pose_transformed.pose.position.z < table_min_z_ || pose_transformed.pose.position.z > table_max_z_) {
+    if(pose_transformed.pose.position.z > table_max_z_) {
+        ROS_WARN_STREAM("Filtered table because it was higher than " << table_max_z_ << "m (it was " << pose_transformed.pose.position.z << "m)");
         return false;
     }
+
+
+
+    //filter tables by orientation (we only want tables with normals facing straight up)
 
     tf::Pose poseTF;
     tf::poseMsgToTF(pose_transformed.pose, poseTF);
@@ -630,11 +642,18 @@ bool OrkToPlanningScene::isValidTable(const object_recognition_msgs::RecognizedO
     tf::Vector3 vZAtPose = tf::quatRotate(rotQuat, vZ);
     double dotDir = fabs(vZ.dot(vZAtPose));     // pointing straight up or down is OK
     if(dotDir < 0.9) {
+        ROS_WARN("Filtered table because its surface is not horizontal (normal was not facing upwards)");
         return false;
     }
 
+
+    // Filter tables by size
     // area from contour
     // http://mathworld.wolfram.com/PolygonArea.html
+
+    ROS_WARN_STREAM("Table contour count: " << ro.bounding_contours.size());
+        
+
     double det_sum = 0.0;
     for(int i = 0; i < ro.bounding_contours.size(); ++i) {
         int iNext = (i + 1) % ro.bounding_contours.size();
@@ -643,8 +662,11 @@ bool OrkToPlanningScene::isValidTable(const object_recognition_msgs::RecognizedO
     }
     det_sum *= 0.5;
     det_sum = fabs(det_sum);
-    if(det_sum < table_min_area_)
+    if(det_sum < double(table_min_area_)){
+        ROS_WARN_STREAM("Filtered table because it was to small: det_sum: " << det_sum << " m^2 < table_min_area:" << table_min_area_ << " m^2");
         return false;
+    }
+
     return true;
 }
 
