@@ -909,7 +909,7 @@ std::pair<double, double> OrkToPlanningScene::poseDistance(const geometry_msgs::
                 ros::Duration(0.5));
         tf_.transformPose(posePS.header.frame_id, poseOR, poseOR_transformed);
     } catch (tf::TransformException ex) {
-        ROS_ERROR("%s", ex.what());
+        ROS_ERROR_STREAM("Unable to determine distance between poses: " << ex.what());
     }
 
     tf::Pose tfPS;
